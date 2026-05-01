@@ -1,0 +1,22 @@
+{
+  "name": "openclaw-mimo-performance-agent",
+  "version": "0.1.0",
+  "description": "Benchmark harness and Claude Code workflow for OpenClaw latency regressions on MiMo models.",
+  "type": "module",
+  "private": false,
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.16"
+  },
+  "bin": {
+    "openclaw-mimo-agent": "./src/cli.js"
+  },
+  "scripts": {
+    "manifest": "node ./src/cli.js manifest",
+    "scenarios": "node ./src/cli.js scenarios",
+    "report": "node ./src/cli.js report",
+    "validate": "node ./src/validate.js",
+    "test": "node --test",
+    "ci": "npm run validate && npm test && npm run report"
+  }
+}
