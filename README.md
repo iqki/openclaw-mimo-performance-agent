@@ -1,50 +1,93 @@
 # OpenClaw MiMo Performance Agent
 
-This repository is a companion harness for OpenClaw performance work on MiMo models.
-It is designed to help you reproduce latency regressions, isolate bottlenecks, generate a focused patch plan, and hand the result to Claude Code for implementation.
+OpenClaw MiMo Performance Agent is a benchmark and optimization harness for tracking latency regressions in OpenClaw when it is used with MiMo-family models.
 
-The goal is not to reimplement OpenClaw. The goal is to make the optimization loop measurable and repeatable.
+The repository focuses on the parts of the stack that usually drive response slowdowns: long-context compaction, tool dispatch, event-loop overhead, provider compatibility, and end-to-end response time. It is intended to give you a repeatable way to measure regressions, explain them, and turn the results into a small patch plan.
 
-## What this repo covers
+## Highlights
 
-- Long-context compaction regressions on non-cache providers.
-- Tool-heavy and event-loop-heavy agent runs.
-- MiMo output normalization, especially `reasoning_content` handling.
-- End-to-end response time tracking across multi-turn tasks.
-- Patch planning and regression reporting for Claude Code follow-up.
+- Scenario-driven performance benchmarking for OpenClaw + MiMo setups.
+- A compact metric catalog centered on TTFT, TPOT, E2E, and framework overhead.
+- Markdown report generation for sharing benchmark results in issues or pull requests.
+- A Claude Code prompt template that keeps optimization work scoped and testable.
+- Lightweight CI validation so the repository stays reproducible.
 
-## Repo layout
+## Overview
 
-- `src/` core manifest, scenario catalog, and markdown report generation.
-- `test/` smoke tests for the benchmark manifest.
-- `docs/` architecture and metric definitions.
-- `prompts/` Claude Code operating prompt for the optimization loop.
+This project is not a replacement for OpenClaw. It is a companion repository that helps you:
+
+- reproduce latency regressions under controlled scenarios,
+- capture measurements for TTFT, TPOT, and E2E response time,
+- compare provider behavior across cache-aware and non-cache paths,
+- isolate framework overhead from model-side latency, and
+- prepare a focused patch workflow for Claude Code or other automation.
+
+## Key Scenarios
+
+The current scenario catalog covers the most common MiMo-related regression patterns:
+
+- long-context conversations where compaction must keep history bounded,
+- tool-heavy runs that stress plugin dispatch and event-loop work,
+- MiMo reasoning output compatibility checks, especially `reasoning_content`, and
+- multi-turn planning tasks that expose cumulative response-time drift.
+
+## Metrics
+
+The repository centers on a small set of metrics that map directly to the bottlenecks above:
+
+- TTFT: time to first token.
+- TPOT: time per output token.
+- E2E: end-to-end response time.
+- context_tokens: current prompt size.
+- cache_hit_rate: provider-side reuse rate.
+- compaction_success_rate: successful compaction rate.
+- plugin_overhead_ms: plugin dispatch overhead.
+- event_loop_overhead_ms: heartbeat and loop overhead.
+- reasoning_normalization_ms: MiMo output normalization cost.
+
+## Repository Structure
+
+- `src/` core manifest, scenario catalog, report generation, and CLI entry points.
+- `test/` Node test coverage for the manifest and metric catalog.
+- `docs/` architecture notes and metric definitions.
+- `prompts/` Claude Code operating prompt for the optimization workflow.
 - `.github/workflows/ci.yml` lightweight validation workflow.
 
-## How the loop is intended to work
+## Installation
 
-1. Point the harness at a local OpenClaw checkout.
-2. Run the scenario catalog against MiMo providers.
-3. Capture TTFT, TPOT, E2E, cache, compaction, plugin, and gateway timings.
-4. Convert the trace into a bottleneck report.
-5. Ask Claude Code to produce a minimal patch.
-6. Re-run the same scenarios to confirm the delta.
+Clone the repository and install dependencies with Node.js 22.16 or later.
 
-## Required inputs from your OpenClaw checkout
+```bash
+git clone https://github.com/iqki/openclaw-mimo-performance-agent.git
+cd openclaw-mimo-performance-agent
+npm install
+```
 
-This repo assumes you have the OpenClaw source code available separately.
-You can wire it in through your own runner, for example by pointing the harness at a local clone and passing the path through configuration.
+If you are wiring the harness into a local OpenClaw checkout, make sure the following environment variables point to the right locations before running any benchmark workflow:
 
-Suggested environment variables:
+- `OPENCLAW_SOURCE_DIR`
+- `OPENCLAW_GITHUB_REPO`
+- `MIMO_MODEL`
+- `BENCHMARK_OUTPUT_DIR`
 
-- `OPENCLAW_SOURCE_DIR` local OpenClaw checkout path.
-- `OPENCLAW_GITHUB_REPO` target GitHub repository name.
+## Getting Started
+
+### Requirements
+
+- Node.js 22.16 or later
+- A local OpenClaw checkout
+- A MiMo-compatible provider configuration
+
+### Environment Variables
+
+The harness expects the OpenClaw checkout and benchmark output location to be provided externally.
+
+- `OPENCLAW_SOURCE_DIR` path to the local OpenClaw source tree.
+- `OPENCLAW_GITHUB_REPO` target repository name for PR automation.
 - `MIMO_MODEL` target model identifier.
-- `BENCHMARK_OUTPUT_DIR` directory for traces and reports.
+- `BENCHMARK_OUTPUT_DIR` output directory for traces and reports.
 
-## Commands
-
-The repo ships with a small Node-based manifest and reporting layer.
+### Commands
 
 ```bash
 npm run manifest
@@ -53,9 +96,82 @@ npm run report
 npm test
 ```
 
-The `report` command prints a markdown summary that you can redirect into an artifact or PR comment.
+`npm run manifest` prints the machine-readable benchmark manifest.
 
-## Why this shape
+`npm run scenarios` prints the scenario list.
 
-The bottlenecks you described are not all in the same layer, so the repo keeps the scenario catalog, metric catalog, report generator, and Claude Code prompt separate.
-That makes it easier to change one side of the loop without rewriting the others.
+`npm run report` generates a markdown report suitable for saving as an artifact or posting in a pull request.
+
+`npm test` runs the repository smoke tests.
+
+## Example Output
+
+Running `npm run report` produces a summary similar to the following:
+
+```text
+# OpenClaw MiMo Performance Report
+
+This report is a repository-level summary generated by the benchmark scaffold.
+
+- Scenario count: 4
+- Metric count: 6
+
+## Scenario matrix
+
+### Long context compaction regression
+- id: long-context-compaction
+- provider: mimo-token-plan
+- focus: compaction
+- objective: Reproduce context growth when the provider does not expose cache-friendly compaction behavior.
+- measurements: context_tokens, cache_hit_rate, compaction_success_rate, TTFT, E2E
+```
+
+The actual report includes the full scenario matrix and metric catalog.
+
+## Workflow
+
+1. Point the harness at a local OpenClaw checkout.
+2. Run the scenario catalog against the target MiMo model.
+3. Collect timing and token metrics from each span in the request lifecycle.
+4. Analyze the trace to identify the dominant bottleneck.
+5. Generate a minimal patch plan.
+6. Re-run the same scenarios to confirm the improvement.
+
+## Contributing
+
+Contributions are welcome when they improve the benchmark loop, the documentation, or the ability to isolate regressions.
+
+When contributing, keep changes small and measurable:
+
+- Prefer one fix per pull request.
+- Add or update a scenario when a new regression pattern needs coverage.
+- Update the report output if a new metric becomes part of the workflow.
+- Keep CI fast enough to run on every push.
+- Preserve the separation between measurement, analysis, and patch planning.
+
+Before opening a pull request, run the repository checks locally:
+
+```bash
+npm run validate
+npm test
+npm run report
+```
+
+## Roadmap
+
+Planned follow-up work for the repository includes:
+
+- a real OpenClaw runner that executes scenarios against a local checkout,
+- per-span tracing export for TTFT, TPOT, and E2E,
+- provider-specific adapters for MiMo routing and normalization,
+- regression comparison across baseline and candidate branches,
+- automated PR generation with benchmark summaries, and
+- richer artifact output for CI and GitHub checks.
+
+## Validation
+
+The repository includes a minimal CI workflow that runs the validation script, tests, and report generation on every push and pull request.
+
+## License
+
+This project is released under the MIT License.
