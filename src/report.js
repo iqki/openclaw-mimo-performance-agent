@@ -25,8 +25,7 @@ export function renderReport() {
     lines.push(`- provider: ${scenario.provider}`);
     lines.push(`- focus: ${scenario.focus}`);
     lines.push(`- objective: ${scenario.objective}`);
-    lines.push(`- measurements:`);
-    lines.push(renderList(scenario.measurements));
+    lines.push(`- measurements: ${scenario.measurements.join(', ')}`);
   }
 
   lines.push('');
